@@ -4,43 +4,39 @@
 
 #include <BlynkSimpleEsp8266.h>
 
-// define the GPIO connected with Relays and switches
-#define RelayPin1 5   //D1
-#define RelayPin2 4   //D2
-#define RelayPin3 14  //D5
-#define RelayPin4 12  //D6
+// Define the GPIO connected with Relays and switches
+#define RelayPin1 5  // D1
+#define RelayPin2 4  // D2
+#define RelayPin3 14 // D5
+#define RelayPin4 12 // D6
 
-#define SwitchPin1 2  //D4 (Reassigned from SD3)
-#define SwitchPin2 0  //D3
-#define SwitchPin3 13 //D7
-#define SwitchPin4 16 //D0 (Reassigned from RX)
+#define SwitchPin1 10 // SD3
+#define SwitchPin2 0  // D3
+#define SwitchPin3 13 // D7
+#define SwitchPin4 3  // RX
 
-#define wifiLed   3   //RX used for WiFi status LED
+#define wifiLed 16 // D0
 
-#define VPIN_BUTTON_1    V1
-#define VPIN_BUTTON_2    V2
-#define VPIN_BUTTON_3    V3
-#define VPIN_BUTTON_4    V4
+#define VPIN_BUTTON_1 V1
+#define VPIN_BUTTON_2 V2
+#define VPIN_BUTTON_3 V3
+#define VPIN_BUTTON_4 V4
 
-int toggleState_1 = 1; 
-int toggleState_2 = 1; 
-int toggleState_3 = 1; 
-int toggleState_4 = 1; 
+int toggleState_1 = 1;
+int toggleState_2 = 1;
+int toggleState_3 = 1;
+int toggleState_4 = 1;
 
 int wifiFlag = 0;
 
-#define WIFI_SSID "WiFi"
-#define WIFI_PASS "12345678"
+#define WIFI_SSID "WiFi"         // Enter WiFi Name
+#define WIFI_PASS "12345678"     // Enter WiFi Password
 
 BlynkTimer timer;
 
-// Debounce variables
-unsigned long lastDebounceTime[4] = {0, 0, 0, 0};
-const unsigned long debounceDelay = 50;
-
-// Function prototypes
-void reconnectWiFi();
-void reconnectBlynk();
+// Variables for debounce
+unsigned long lastDebounceTime1 = 0, lastDebounceTime2 = 0, lastDebounceTime3 = 0, lastDebounceTime4 = 0;
+const unsigned long debounceDelay = 50; // 50ms debounce delay
 
 void relayOnOff(int relay) {
     switch (relay) {
@@ -69,67 +65,89 @@ void relayOnOff(int relay) {
     }
 }
 
-void handleSwitch(int switchPin, int relay, int switchIndex) {
-    if (digitalRead(switchPin) == LOW) {
-        unsigned long currentTime = millis();
-        if (currentTime - lastDebounceTime[switchIndex] > debounceDelay) {
-            lastDebounceTime[switchIndex] = currentTime;
-            relayOnOff(relay);
-            if (wifiFlag == 0) {
-                Blynk.virtualWrite(VPIN_BUTTON_1 + relay - 1, toggleState_1 + relay - 1);
-            }
-        }
+void with_internet() {
+    unsigned long currentMillis = millis();
+
+    if (digitalRead(SwitchPin1) == LOW && (currentMillis - lastDebounceTime1 > debounceDelay)) {
+        lastDebounceTime1 = currentMillis;
+        relayOnOff(1);
+        Blynk.virtualWrite(VPIN_BUTTON_1, toggleState_1); // Update Button Widget  
+    }
+    if (digitalRead(SwitchPin2) == LOW && (currentMillis - lastDebounceTime2 > debounceDelay)) {
+        lastDebounceTime2 = currentMillis;
+        relayOnOff(2);
+        Blynk.virtualWrite(VPIN_BUTTON_2, toggleState_2); // Update Button Widget
+    }
+    if (digitalRead(SwitchPin3) == LOW && (currentMillis - lastDebounceTime3 > debounceDelay)) {
+        lastDebounceTime3 = currentMillis;
+        relayOnOff(3);
+        Blynk.virtualWrite(VPIN_BUTTON_3, toggleState_3); // Update Button Widget
+    }
+    if (digitalRead(SwitchPin4) == LOW && (currentMillis - lastDebounceTime4 > debounceDelay)) {
+        lastDebounceTime4 = currentMillis;
+        relayOnOff(4);
+        Blynk.virtualWrite(VPIN_BUTTON_4, toggleState_4); // Update Button Widget
     }
 }
 
-void with_internet() {
-    handleSwitch(SwitchPin1, 1, 0);
-    handleSwitch(SwitchPin2, 2, 1);
-    handleSwitch(SwitchPin3, 3, 2);
-    handleSwitch(SwitchPin4, 4, 3);
-}
-
 void without_internet() {
-    handleSwitch(SwitchPin1, 1, 0);
-    handleSwitch(SwitchPin2, 2, 1);
-    handleSwitch(SwitchPin3, 3, 2);
-    handleSwitch(SwitchPin4, 4, 3);
+    unsigned long currentMillis = millis();
+
+    if (digitalRead(SwitchPin1) == LOW && (currentMillis - lastDebounceTime1 > debounceDelay)) {
+        lastDebounceTime1 = currentMillis;
+        relayOnOff(1);      
+    }
+    if (digitalRead(SwitchPin2) == LOW && (currentMillis - lastDebounceTime2 > debounceDelay)) {
+        lastDebounceTime2 = currentMillis;
+        relayOnOff(2);
+    }
+    if (digitalRead(SwitchPin3) == LOW && (currentMillis - lastDebounceTime3 > debounceDelay)) {
+        lastDebounceTime3 = currentMillis;
+        relayOnOff(3);
+    }
+    if (digitalRead(SwitchPin4) == LOW && (currentMillis - lastDebounceTime4 > debounceDelay)) {
+        lastDebounceTime4 = currentMillis;
+        relayOnOff(4);
+    }
 }
 
 BLYNK_CONNECTED() {
+    // Request the latest state from the server
     Blynk.syncVirtual(VPIN_BUTTON_1);
     Blynk.syncVirtual(VPIN_BUTTON_2);
     Blynk.syncVirtual(VPIN_BUTTON_3);
     Blynk.syncVirtual(VPIN_BUTTON_4);
 }
 
+// When App button is pushed - switch the state
 BLYNK_WRITE(VPIN_BUTTON_1) {
     toggleState_1 = param.asInt();
-    digitalWrite(RelayPin1, toggleState_1 ? HIGH : LOW);
+    digitalWrite(RelayPin1, toggleState_1);
 }
 
 BLYNK_WRITE(VPIN_BUTTON_2) {
     toggleState_2 = param.asInt();
-    digitalWrite(RelayPin2, toggleState_2 ? HIGH : LOW);
+    digitalWrite(RelayPin2, toggleState_2);
 }
 
 BLYNK_WRITE(VPIN_BUTTON_3) {
     toggleState_3 = param.asInt();
-    digitalWrite(RelayPin3, toggleState_3 ? HIGH : LOW);
+    digitalWrite(RelayPin3, toggleState_3);
 }
 
 BLYNK_WRITE(VPIN_BUTTON_4) {
     toggleState_4 = param.asInt();
-    digitalWrite(RelayPin4, toggleState_4 ? HIGH : LOW);
+    digitalWrite(RelayPin4, toggleState_4);
 }
 
-void checkBlynkStatus() {
-    if (!Blynk.connected()) {
+void checkBlynkStatus() { // called every 3 seconds by SimpleTimer
+    bool isconnected = Blynk.connected();
+    if (!isconnected) {
         wifiFlag = 1;
-        digitalWrite(wifiLed, HIGH);
+        digitalWrite(wifiLed, HIGH); // Turn off WiFi LED
     } else {
         wifiFlag = 0;
-        digitalWrite(wifiLed, LOW);
+        digitalWrite(wifiLed, LOW); // Turn on WiFi LED
     }
 }
 
@@ -148,43 +166,29 @@ void setup() {
     pinMode(SwitchPin3, INPUT_PULLUP);
     pinMode(SwitchPin4, INPUT_PULLUP);
 
-    // Initialize relays as off
-    digitalWrite(RelayPin1, HIGH);
-    digitalWrite(RelayPin2, HIGH);
-    digitalWrite(RelayPin3, HIGH);
-    digitalWrite(RelayPin4, HIGH);
+    // During Starting, all Relays should TURN OFF
+    digitalWrite(RelayPin1, toggleState_1);
+    digitalWrite(RelayPin2, toggleState_2);
+    digitalWrite(RelayPin3, toggleState_3);
+    digitalWrite(RelayPin4, toggleState_4);
 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
-    timer.setInterval(3000L, checkBlynkStatus);
+    timer.setInterval(3000L, checkBlynkStatus); // check if Blynk server is connected every 3 seconds
     Blynk.config(BLYNK_AUTH_TOKEN);
 }
 
-void loop() {
-    reconnectWiFi();
-    reconnectBlynk();
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Blynk.run();
-    } else {
+void loop() {  
+    if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi Not Connected");
+    } else {
+        Serial.println("WiFi Connected");
+        Blynk.run();
     }
 
-    timer.run();
+    timer.run(); // Initiates SimpleTimer
     if (wifiFlag == 0) {
         with_internet();
     } else {
         without_internet();
-    }
-}
-
-void reconnectWiFi() {
-    if (WiFi.status() != WL_CONNECTED) {
-        WiFi.begin(WIFI_SSID, WIFI_PASS);
-    }
-}
-
-void reconnectBlynk() {
-    if (!Blynk.connected()) {
-        Blynk.connect();
     }
 }
