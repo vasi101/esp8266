@@ -1,7 +1,7 @@
 // Blynk authentication details
-#define BLYNK_TEMPLATE_ID "IMPL6w817Fd5m"
-#define BLYNK_TEMPLATE_NAME "nodemcu"
-#define BLYNK_AUTH_TOKEN "f9Q1B40pu9X3zFdtHA2V722GsQTy3fvG"
+#define BLYNK_TEMPLATE_ID "TMPL62IsoMLHl"
+#define BLYNK_TEMPLATE_NAME "nodmcu"
+#define BLYNK_AUTH_TOKEN "rIXhhO8I2liZrCkGe5-qdOK_8n9lsYNh"
 
 // Include required libraries
 #include <ESP8266WiFi.h>
@@ -17,9 +17,9 @@ const int SWITCH_PINS[] = {D5, D6, D7, D8}; // Physical switch pins
 const int WIFI_LED = LED_BUILTIN;           // Built-in LED for WiFi status
 
 // Variables to store switch and relay states
-int switchState[] = {1, 1, 1, 1}; // HIGH means no press (INPUT_PULLUP)
+int switchState[] = {1, 1, 1, 1};  // HIGH means no press (INPUT_PULLUP)
 int lastSwitchState[] = {1, 1, 1, 1};
-int relayState[] = {0, 0, 0, 0}; // Relay OFF initially
+int relayState[] = {0, 0, 0, 0};   // Relay OFF initially
 
 // Virtual pins for Blynk
 const int VPIN_START = V1; // Start virtual pins from V1
@@ -29,7 +29,7 @@ BlynkTimer timer;
 
 // Variables to track debouncing
 unsigned long lastDebounceTime[4] = {0, 0, 0, 0};
-unsigned long debounceDelay = 50;  // 50ms debounce delay
+const unsigned long debounceDelay = 50;  // 50ms debounce delay
 
 void setup() {
   Serial.begin(115200);
@@ -49,15 +49,18 @@ void setup() {
   pinMode(WIFI_LED, OUTPUT);
   digitalWrite(WIFI_LED, HIGH); // Turn LED OFF initially (active LOW)
 
-  // Attempt to connect to WiFi
+  // Connect to WiFi
   WiFi.begin(ssid, pass);
-  timer.setInterval(1000L, checkWiFi); // Check WiFi connection every second
+  Blynk.config(BLYNK_AUTH_TOKEN);
+  timer.setInterval(1000L, checkWiFi);      // Check WiFi connection every second
+  timer.setInterval(100L, checkSwitches);  // Check physical switches every 100ms
 
   Serial.println("Setup complete!");
 }
 
 // Sync relay states when Blynk reconnects
 BLYNK_CONNECTED() {
+  Serial.println("Blynk connected!");
   for (int i = 0; i < 4; i++) {
     Blynk.virtualWrite(VPIN_START + i, relayState[i]); // Sync all relays
   }
@@ -78,45 +81,44 @@ void relayControl(int relayIndex, int state) {
   Serial.println(state == HIGH ? " ON" : " OFF");
 }
 
-// Check physical switch states with non-blocking debounce
-void checkPhysicalSwitches() {
+// Check physical switch states with debouncing
+void checkSwitches() {
   for (int i = 0; i < 4; i++) {
     int currentState = digitalRead(SWITCH_PINS[i]);
 
-    // Check if enough time has passed to debounce
-    if (currentState != lastSwitchState[i] && (millis() - lastDebounceTime[i]) > debounceDelay) {
+    // Debounce logic
+    if (currentState != lastSwitchState[i]) {
       lastDebounceTime[i] = millis(); // Update debounce timer
-
-      if (currentState == LOW) { // Switch pressed
-        relayState[i] = !relayState[i]; // Toggle relay state
-        digitalWrite(RELAY_PINS[i], relayState[i]); // Update relay
-        Serial.print("Relay "); Serial.print(i + 1);
-        Serial.println(relayState[i] == HIGH ? " ON" : " OFF");
-      }
-
-      lastSwitchState[i] = currentState; // Update last state
     }
+
+    if ((millis() - lastDebounceTime[i]) > debounceDelay) {
+      if (currentState != switchState[i]) {
+        switchState[i] = currentState;
+
+        if (currentState == LOW) { // Switch pressed
+          relayState[i] = !relayState[i]; // Toggle relay state
+          digitalWrite(RELAY_PINS[i], relayState[i]); // Update relay
+          Blynk.virtualWrite(VPIN_START + i, relayState[i]); // Sync Blynk
+          Serial.print("Relay "); Serial.print(i + 1);
+          Serial.println(relayState[i] == HIGH ? " ON" : " OFF");
+        }
+      }
+    }
+
+    lastSwitchState[i] = currentState; // Update last state
   }
-}
-
-// Functionality when WiFi is connected
-void withInternet() {
-  Blynk.run();  // Handle Blynk connection and communication
-}
-
-// Functionality when WiFi is not connected
-void withoutInternet() {
-  checkPhysicalSwitches(); // Only check physical switches
 }
 
 // Check WiFi connection
 void checkWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     digitalWrite(WIFI_LED, LOW); // Turn LED ON (WiFi connected)
-    withInternet();
+    if (!Blynk.connected()) {
+      Blynk.connect(); // Attempt to reconnect Blynk
+    }
+    Blynk.run(); // Handle Blynk tasks
   } else {
     digitalWrite(WIFI_LED, HIGH); // Turn LED OFF (No WiFi)
-    withoutInternet();
   }
 }
 
