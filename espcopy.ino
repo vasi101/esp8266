@@ -1,6 +1,6 @@
 #define BLYNK_TEMPLATE_ID "TMPL62IsoMLHl"
 #define BLYNK_TEMPLATE_NAME "nodmcu"
-#define BLYNK_AUTH_TOKEN "rIXhhO8I2liZrCkGe5-qdOK_8n9lsYNh"
+#define BLYNK_AUTH_TOKEN ""
 
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
